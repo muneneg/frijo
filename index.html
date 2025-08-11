@@ -9,7 +9,7 @@
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Ensure getDoc is imported
 
         // Your actual Firebase project configuration for deployment
         const firebaseConfig = {
@@ -27,7 +27,7 @@
         let isAuthReady = false;
 
         // --- Utility Functions ---
-        // Expose utility functions globally so onclick attributes can find them
+        // Expose utility functions globally so they can be called directly from HTML attributes or other global contexts
         window.showMessage = function(message, type = 'info') {
             const messageBox = document.getElementById('messageBox');
             const messageText = document.getElementById('messageText');
@@ -115,7 +115,7 @@
             try {
                 await signInWithEmailAndPassword(auth, email, password);
                 window.showMessage('Logged in successfully!', 'success'); // Use window.showMessage
-                // onAuthStateChanged listener will handle UI update and call showLoanListView()
+                // onAuthStateChanged listener will handle UI update
             } catch (error) {
                 console.error("Error logging in:", error);
                 window.showMessage(`Login failed: ${error.message}`, 'error'); // Use window.showMessage
@@ -128,11 +128,11 @@
                 window.showMessage('Logged out successfully.', 'info'); // Use window.showMessage
             } catch (error) {
                 console.error("Error logging out:", error);
-                window.showMessage(`Error logging out: ${e.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Error logging out: ${error.message}`, 'error'); // Use window.showMessage
             }
         }
 
-        // --- View Management Functions ---
+        // --- View Management Functions (for modals) ---
         window.openAddLoanModal = function() {
             document.getElementById('addLoanModal').classList.remove('hidden');
         }
@@ -290,8 +290,8 @@
                     <td class="px-6 py-4">${loan.disbursementMessage}</td>
                     <td class="px-6 py-4">${displayStatus}</td>
                     <td class="px-6 py-4 text-right">
-                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" onclick="window.openRepayModal('${loan.id}', ${remainingAmount})">Repay</button>
-                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" onclick="window.confirmDeleteLoan('${loan.id}')">Delete</button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-remaining-amount="${remainingAmount}">Repay</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" data-action="delete" data-loan-id="${loan.id}">Delete</button>
                     </td>
                 `;
                 loanListBody.appendChild(row);
@@ -339,7 +339,7 @@
          * @param {string} loanId - The ID of the loan to repay.
          * @param {number} remainingAmount - The remaining amount of the loan.
          */
-        window.openRepayModal = function(loanId, remainingAmount) { // Make global
+        function openRepayModal(loanId, remainingAmount) { // Module-scoped
             document.getElementById('repayLoanId').value = loanId;
             document.getElementById('repayRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
             document.getElementById('repayAmount').value = ''; // Clear previous input
@@ -350,7 +350,7 @@
         /**
          * Closes the repayment modal.
          */
-        window.closeRepayModal = function() { // Make global
+        window.closeRepayModal = function() { // Global for direct button click
             document.getElementById('repayModal').classList.add('hidden');
         }
 
@@ -358,8 +358,9 @@
          * Handles the loan repayment.
          * @param {Event} event - The form submission event.
          */
-        window.repayLoan = async function(event) { // Make global
+        async function repayLoan(event) { // Module-scoped
             event.preventDefault();
+            console.log("repayLoan called. db:", db); // Added for debugging
             if (!isAuthReady || !userId) {
                 window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
                 return;
@@ -376,7 +377,7 @@
 
             try {
                 const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
-                const currentLoanSnapshot = await getDoc(loanRef);
+                const currentLoanSnapshot = await getDoc(loanRef); // getDoc is called here
 
                 if (!currentLoanSnapshot.exists()) {
                     window.showMessage('Loan not found!', 'error'); // Use window.showMessage
@@ -420,9 +421,9 @@
          * Confirms deletion of a loan.
          * @param {string} loanId - The ID of the loan to delete.
          */
-        window.confirmDeleteLoan = function(loanId) { // Make global
+        function confirmDeleteLoan(loanId) { // Module-scoped
             window.showModal('Confirm Delete', 'Are you sure you want to delete this loan? This action cannot be undone.', async () => {
-                await window.deleteLoan(loanId); // Use window.deleteLoan
+                await deleteLoan(loanId); // Call module-scoped function
             });
         }
 
@@ -430,7 +431,8 @@
          * Deletes a loan from Firestore.
          * @param {string} loanId - The ID of the loan to delete.
          */
-        window.deleteLoan = async function(loanId) { // Make global
+        async function deleteLoan(loanId) { // Module-scoped
+            console.log("deleteLoan called. db:", db); // Added for debugging
             if (!isAuthReady || !userId) {
                 window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
                 return;
@@ -452,21 +454,48 @@
         window.onload = function() {
             initializeFirebase();
             document.getElementById('addLoanForm').addEventListener('submit', addLoan);
-            document.getElementById('repayForm').addEventListener('submit', window.repayLoan); // Changed to window.repayLoan
+            document.getElementById('repayForm').addEventListener('submit', repayLoan); // Attached directly, not window.
             document.getElementById('closeRepayModalBtn').addEventListener('click', window.closeRepayModal); // Use window.closeRepayModal
             document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal); // Use window.hideModal
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
             document.getElementById('loginForm').addEventListener('submit', handleLogin); // Attach login handler
-            // New event listeners for toggling add loan form
+
+            // Event listeners for toggling add loan form
             document.getElementById('showAddLoanFormBtn').addEventListener('click', window.openAddLoanModal); // Open modal on click
             document.getElementById('cancelAddLoanBtn').addEventListener('click', window.closeAddLoanModal); // Close modal on cancel
+
+            // Event delegation for Repay and Delete buttons
+            document.getElementById('loanListBody').addEventListener('click', (event) => {
+                const target = event.target;
+                // Check if the clicked element is a button and has a data-action attribute
+                if (target.tagName === 'BUTTON' && target.dataset.action) {
+                    const action = target.dataset.action;
+                    const loanId = target.dataset.loanId;
+
+                    if (action === 'repay') {
+                        const remainingAmount = parseFloat(target.dataset.remainingAmount);
+                        openRepayModal(loanId, remainingAmount); // Call module-scoped function
+                    } else if (action === 'delete') {
+                        confirmDeleteLoan(loanId); // Call module-scoped function
+                    }
+                }
+            });
         };
     </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            background-color: #f3f4f6;
+        /* Simple loader for login screen */
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -505,11 +534,11 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan Amount</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payable</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Payable</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
@@ -527,7 +556,7 @@
         <!-- Monthly Reports Section -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-                <h3 class="text-xl font-semibold mb-3 text-gray-700">Money Out</h3>
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Disbursed (Money Out)</h3>
                 <div class="overflow-x-auto shadow-md rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -544,7 +573,7 @@
             </div>
 
             <div>
-                <h3 class="text-xl font-semibold mb-3 text-gray-700">Money In</h3>
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Repaid (Money In)</h3>
                 <div class="overflow-x-auto shadow-md rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -573,15 +602,15 @@
             <h3 class="text-xl font-bold mb-4 text-gray-800">Add New Loan</h3>
             <form id="addLoanForm" class="space-y-4">
                 <div>
-                    <label for="memberName" class="block text-sm font-medium text-gray-700">Name</label>
+                    <label for="memberName" class="block text-sm font-medium text-gray-700">Member Name</label>
                     <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div>
-                    <label for="loanAmount" class="block text-sm font-medium text-gray-700">Amount (KES)</label>
+                    <label for="loanAmount" class="block text-sm font-medium text-gray-700">Loan Amount (KES)</label>
                     <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div>
-                    <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest (%)</label>
+                    <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest Rate (%)</label>
                     <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div>
@@ -634,7 +663,7 @@
                 <button type="button" id="modalConfirmBtn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-200">Confirm</button>
             </div>
         </div>
-    </div>
+    </div
 
     <style>
         /* Simple loader for login screen */
