@@ -247,10 +247,8 @@
                 // Remaining amount now accounts for the total amount payable (principal + interest)
                 const remainingAmount = amountPayable - loan.amountPaid;
 
-                // --- FIX: Define these variables inside the loop ---
                 const dueDateObj = new Date(loan.dueDate);
                 const timeDiff = loan.dueDate - now;
-                // --- END FIX ---
 
                 if (loan.status === 'paid' || remainingAmount <= 0) {
                     statusClass = 'bg-green-100'; // Fully paid
@@ -284,8 +282,7 @@
                     <td class="px-6 py-4">KES ${amountPayable.toFixed(2)}</td>
                     <td class="px-6 py-4">${loan.rate.toFixed(2)}%</td>
                     <td class="px-6 py-4">${dueDateObj.toLocaleDateString()}</td>
-                    <td class="px-6 py-4">${loan.phoneNumber}</td>
-                    <td class="px-6 py-4">${loan.disbursementMessage}</td>
+                    <td class="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis max-w-xs">${loan.disbursementMessage}</td>
                     <td class="px-6 py-4">${displayStatus}</td>
                     <td class="px-6 py-4 text-right">
                         <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-remaining-amount="${remainingAmount}">Repay</button>
@@ -600,7 +597,7 @@
                 <div>
                     <label for="memberName" class="block text-sm font-medium text-gray-700">Name</label>
                     <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
+            </div>
                 <div>
                     <label for="loanAmount" class="block text-sm font-medium text-gray-700">Amount (KES)</label>
                     <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
