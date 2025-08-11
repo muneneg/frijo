@@ -86,7 +86,6 @@
                         document.getElementById('mainApp').classList.remove('hidden');
                         document.getElementById('loggedInUserId').textContent = `User ID: ${userId}`;
                         setupLoanListener(); // Start listening for loan data once authenticated
-                        showLoanListView(); // Show loan list by default
                         window.showMessage('Welcome! You are logged in.', 'success'); // Use window.showMessage
                     } else {
                         userId = null;
@@ -129,21 +128,18 @@
                 window.showMessage('Logged out successfully.', 'info'); // Use window.showMessage
             } catch (error) {
                 console.error("Error logging out:", error);
-                window.showMessage(`Error logging out: ${error.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Error logging out: ${e.message}`, 'error'); // Use window.showMessage
             }
         }
 
         // --- View Management Functions ---
-        function showAddLoanFormView() {
-            document.getElementById('loanControlsContainer').classList.add('hidden');
-            document.getElementById('loanFormContainer').classList.remove('hidden');
+        window.openAddLoanModal = function() {
+            document.getElementById('addLoanModal').classList.remove('hidden');
         }
 
-        function showLoanListView() {
-            document.getElementById('loanFormContainer').classList.add('hidden');
-            document.getElementById('loanControlsContainer').classList.remove('hidden');
-            // Ensure the add loan form is reset when returning to list view
-            document.getElementById('addLoanForm').reset();
+        window.closeAddLoanModal = function() {
+            document.getElementById('addLoanModal').classList.add('hidden');
+            document.getElementById('addLoanForm').reset(); // Reset form on close
         }
 
         // --- Loan Management Functions ---
@@ -183,7 +179,7 @@
                     createdAt: Date.now() // Timestamp of creation
                 });
                 window.showMessage('Loan added successfully!', 'success'); // Use window.showMessage
-                showLoanListView(); // Go back to loan list after adding
+                window.closeAddLoanModal(); // Close modal after adding
             } catch (e) {
                 console.error("Error adding document: ", e);
                 window.showMessage(`Failed to add loan: ${e.message}`, 'error'); // Use window.showMessage
@@ -284,10 +280,10 @@
                 row.className = `border-b ${statusClass}`;
                 row.innerHTML = `
                     <td class="px-6 py-4">${loan.memberName}</td>
-                    <td class="px-6 py-4">$${loan.loanAmount.toFixed(2)}</td>
-                    <td class="px-6 py-4">$${loan.amountPaid.toFixed(2)}</td>
-                    <td class="px-6 py-4">$${remainingAmount.toFixed(2)}</td>
-                    <td class="px-6 py-4">$${amountPayable.toFixed(2)}</td>
+                    <td class="px-6 py-4">KES ${loan.loanAmount.toFixed(2)}</td>
+                    <td class="px-6 py-4">KES ${loan.amountPaid.toFixed(2)}</td>
+                    <td class="px-6 py-4">KES ${remainingAmount.toFixed(2)}</td>
+                    <td class="px-6 py-4">KES ${amountPayable.toFixed(2)}</td>
                     <td class="px-6 py-4">${loan.rate.toFixed(2)}%</td>
                     <td class="px-6 py-4">${dueDateObj.toLocaleDateString()}</td>
                     <td class="px-6 py-4">${loan.phoneNumber}</td>
@@ -323,7 +319,7 @@
                 disburseRow.className = "border-b bg-white";
                 disburseRow.innerHTML = `
                     <td class="px-6 py-4">${month}</td>
-                    <td class="px-6 py-4">$${disbursedAmount}</td>
+                    <td class="px-6 py-4">KES ${disbursedAmount}</td>
                 `;
                 disbursementsBody.appendChild(disburseRow);
 
@@ -331,7 +327,7 @@
                 repayRow.className = "border-b bg-white";
                 repayRow.innerHTML = `
                     <td class="px-6 py-4">${month}</td>
-                    <td class="px-6 py-4">$${repaidAmount}</td>
+                    <td class="px-6 py-4">KES ${repaidAmount}</td>
                 `;
                 repaymentBody.appendChild(repayRow);
             });
@@ -345,7 +341,7 @@
          */
         window.openRepayModal = function(loanId, remainingAmount) { // Make global
             document.getElementById('repayLoanId').value = loanId;
-            document.getElementById('repayRemainingAmount').textContent = `$${remainingAmount.toFixed(2)}`;
+            document.getElementById('repayRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
             document.getElementById('repayAmount').value = ''; // Clear previous input
             document.getElementById('repayAmount').max = remainingAmount; // Set max value for input
             document.getElementById('repayModal').classList.remove('hidden');
@@ -362,7 +358,7 @@
          * Handles the loan repayment.
          * @param {Event} event - The form submission event.
          */
-        async function repayLoan(event) {
+        window.repayLoan = async function(event) { // Make global
             event.preventDefault();
             if (!isAuthReady || !userId) {
                 window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
@@ -371,7 +367,7 @@
 
             const loanId = document.getElementById('repayLoanId').value;
             const repayAmount = parseFloat(document.getElementById('repayAmount').value);
-            const remainingAmount = parseFloat(document.getElementById('repayRemainingAmount').textContent.replace('$', ''));
+            const remainingAmount = parseFloat(document.getElementById('repayRemainingAmount').textContent.replace('KES ', ''));
 
             if (isNaN(repayAmount) || repayAmount <= 0 || repayAmount > remainingAmount) {
                 window.showMessage('Please enter a valid repayment amount.', 'error'); // Use window.showMessage
@@ -456,14 +452,14 @@
         window.onload = function() {
             initializeFirebase();
             document.getElementById('addLoanForm').addEventListener('submit', addLoan);
-            document.getElementById('repayForm').addEventListener('submit', repayLoan);
+            document.getElementById('repayForm').addEventListener('submit', window.repayLoan); // Changed to window.repayLoan
             document.getElementById('closeRepayModalBtn').addEventListener('click', window.closeRepayModal); // Use window.closeRepayModal
             document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal); // Use window.hideModal
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
             document.getElementById('loginForm').addEventListener('submit', handleLogin); // Attach login handler
             // New event listeners for toggling add loan form
-            document.getElementById('showAddLoanFormBtn').addEventListener('click', showAddLoanFormView);
-            document.getElementById('cancelAddLoanBtn').addEventListener('click', showLoanListView);
+            document.getElementById('showAddLoanFormBtn').addEventListener('click', window.openAddLoanModal); // Open modal on click
+            document.getElementById('cancelAddLoanBtn').addEventListener('click', window.closeAddLoanModal); // Close modal on cancel
         };
     </script>
     <style>
@@ -494,112 +490,73 @@
     </div>
 
     <!-- Main Application -->
-    <div id="mainApp" class="w-full max-w-7xl bg-white rounded-lg shadow-xl p-8 hidden flex flex-col md:flex-row">
-        <div class="md:w-1/3 p-4 border-b md:border-b-0 md:border-r border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h1 class="text-3xl font-bold text-gray-800">Loan Management</h1>
-                <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-200">Logout</button>
-            </div>
-            <p id="loggedInUserId" class="text-sm text-gray-600 mb-6"></p>
+    <div id="mainApp" class="w-full max-w-7xl bg-white rounded-lg shadow-xl p-8 hidden flex flex-col">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Loan Management</h1>
+            <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-200">Logout</button>
+        </div>
+        <p id="loggedInUserId" class="text-sm text-gray-600 mb-6"></p>
 
-            <!-- Container for "Add New Loan" button -->
-            <div id="loanControlsContainer">
-                <button id="showAddLoanFormBtn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add New Loan</button>
-            </div>
+        <!-- New "Add New Loan" button, now globally accessible via window.openAddLoanModal -->
+        <button id="showAddLoanFormBtn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200 mb-6">Add New Loan</button>
 
-            <!-- Container for Add Loan Form (hidden by default) -->
-            <div id="loanFormContainer" class="hidden">
-                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Add New Loan</h2>
-                <form id="addLoanForm" class="space-y-4">
-                    <div>
-                        <label for="memberName" class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="loanAmount" class="block text-sm font-medium text-gray-700">Amount (Kes)</label>
-                        <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest (%)</label>
-                        <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
-                        <input type="date" id="dueDate" name="dueDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="phoneNumber" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                        <input type="tel" id="phoneNumber" name="phoneNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="disbursementMessage" class="block text-sm font-medium text-gray-700">Disbursement Message</label>
-                        <textarea id="disbursementMessage" name="disbursementMessage" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
-                    </div>
-                    <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add Loan</button>
-                    <button type="button" id="cancelAddLoanBtn" class="w-full bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 transition duration-200 mt-2">Cancel</button>
-                </form>
-            </div>
+        <h2 class="text-2xl font-semibold mb-4 text-gray-700">Loan List & Reminders</h2>
+        <div class="overflow-x-auto shadow-md rounded-lg mb-8">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payable</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="loanListBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Loan rows will be inserted here by JavaScript -->
+                </tbody>
+            </table>
         </div>
 
-        <div class="md:w-2/3 p-4">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Loan List & Reminders</h2>
-            <div class="overflow-x-auto shadow-md rounded-lg mb-8">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member Name</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan Amount</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Payable</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="loanListBody" class="bg-white divide-y divide-gray-200">
-                        <!-- Loan rows will be inserted here by JavaScript -->
-                    </tbody>
-                </table>
+        <!-- Monthly Reports Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Money Out</h3>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Disbursed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyDisbursementsBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Monthly disbursements will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- Monthly Reports Section -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Disbursed (Money Out)</h3>
-                    <div class="overflow-x-auto shadow-md rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Disbursed</th>
-                                </tr>
-                            </thead>
-                            <tbody id="monthlyDisbursementsBody" class="bg-white divide-y divide-gray-200">
-                                <!-- Monthly disbursements will be inserted here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Repaid (Money In)</h3>
-                    <div class="overflow-x-auto shadow-md rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Repaid</th>
-                                </tr>
-                            </thead>
-                            <tbody id="monthlyRepaymentsBody" class="bg-white divide-y divide-gray-200">
-                                <!-- Monthly repayments will be inserted here -->
-                            </tbody>
-                        </table>
-                    </div>
+            <div>
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Money In</h3>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Repaid</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyRepaymentsBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Monthly repayments will be inserted here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -610,6 +567,44 @@
         <span id="messageText"></span>
     </div>
 
+    <!-- Add Loan Modal (New Modal Structure) -->
+    <div id="addLoanModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Add New Loan</h3>
+            <form id="addLoanForm" class="space-y-4">
+                <div>
+                    <label for="memberName" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="loanAmount" class="block text-sm font-medium text-gray-700">Amount (KES)</label>
+                    <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest (%)</label>
+                    <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
+                    <input type="date" id="dueDate" name="dueDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="phoneNumber" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="disbursementMessage" class="block text-sm font-medium text-gray-700">Disbursement Message</label>
+                    <textarea id="disbursementMessage" name="disbursementMessage" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 mt-4">
+                    <button type="button" id="cancelAddLoanBtn" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 transition duration-200">Cancel</button>
+                    <button type="submit" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add Loan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
     <!-- Repay Loan Modal -->
     <div id="repayModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
@@ -618,7 +613,7 @@
                 <input type="hidden" id="repayLoanId">
                 <p class="text-gray-700">Remaining Amount: <span id="repayRemainingAmount" class="font-semibold text-blue-600"></span></p>
                 <div>
-                    <label for="repayAmount" class="block text-sm font-medium text-gray-700">Repay Amount (Kes)</label>
+                    <label for="repayAmount" class="block text-sm font-medium text-gray-700">Repay Amount (KES)</label>
                     <input type="number" id="repayAmount" name="repayAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div class="flex justify-end space-x-3">
