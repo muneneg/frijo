@@ -9,7 +9,7 @@
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Ensure getDoc is imported
+        import { getFirestore, collection, addDoc, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Your actual Firebase project configuration for deployment
         const firebaseConfig = {
@@ -20,14 +20,12 @@
             messagingSenderId: "165458565612",
             appId: "1:165458565612:web:52405858d1ab1dddc8c8c9"
         };
-        // Using the appId directly from your firebaseConfig for consistency
         const appId = firebaseConfig.appId;
 
         let app, db, auth, userId = null;
         let isAuthReady = false;
 
         // --- Utility Functions ---
-        // Expose utility functions globally so they can be called directly from HTML attributes or other global contexts
         window.showMessage = function(message, type = 'info') {
             const messageBox = document.getElementById('messageBox');
             const messageText = document.getElementById('messageText');
@@ -55,12 +53,12 @@
                 confirmBtn.classList.remove('hidden');
                 confirmBtn.onclick = () => {
                     onConfirm();
-                    window.hideModal(); // Use window.hideModal for global access
+                    window.hideModal();
                 };
-                cancelBtn.onclick = window.hideModal; // Use window.hideModal for global access
+                cancelBtn.onclick = window.hideModal;
             } else {
                 confirmBtn.classList.add('hidden');
-                cancelBtn.onclick = window.hideModal; // Use window.hideModal for global access
+                cancelBtn.onclick = window.hideModal;
             }
             document.getElementById('modalBackdrop').classList.remove('hidden');
         }
@@ -76,7 +74,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
 
-                // Authenticate user
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
@@ -85,20 +82,20 @@
                         document.getElementById('loginScreen').classList.add('hidden');
                         document.getElementById('mainApp').classList.remove('hidden');
                         document.getElementById('loggedInUserId').textContent = `User ID: ${userId}`;
-                        setupLoanListener(); // Start listening for loan data once authenticated
-                        window.showMessage('Welcome! You are logged in.', 'success'); // Use window.showMessage
+                        setupLoanListener();
+                        window.showMessage('Welcome! You are logged in.', 'success');
                     } else {
                         userId = null;
                         isAuthReady = false;
                         document.getElementById('loginScreen').classList.remove('hidden');
                         document.getElementById('mainApp').classList.add('hidden');
-                        window.showMessage('Please log in to continue.', 'info'); // Use window.showMessage
+                        window.showMessage('Please log in to continue.', 'info');
                     }
                 });
 
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
-                window.showMessage(`Error: ${error.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -108,27 +105,26 @@
             const password = document.getElementById('loginPassword').value;
 
             if (!email || !password) {
-                window.showMessage('Please enter both email and password.', 'error'); // Use window.showMessage
+                window.showMessage('Please enter both email and password.', 'error');
                 return;
             }
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                window.showMessage('Logged in successfully!', 'success'); // Use window.showMessage
-                // onAuthStateChanged listener will handle UI update
+                window.showMessage('Logged in successfully!', 'success');
             } catch (error) {
                 console.error("Error logging in:", error);
-                window.showMessage(`Login failed: ${error.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Login failed: ${error.message}`, 'error');
             }
         }
 
         async function handleLogout() {
             try {
                 await signOut(auth);
-                window.showMessage('Logged out successfully.', 'info'); // Use window.showMessage
+                window.showMessage('Logged out successfully.', 'info');
             } catch (error) {
                 console.error("Error logging out:", error);
-                window.showMessage(`Error logging out: ${error.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Error logging out: ${error.message}`, 'error');
             }
         }
 
@@ -139,18 +135,14 @@
 
         window.closeAddLoanModal = function() {
             document.getElementById('addLoanModal').classList.add('hidden');
-            document.getElementById('addLoanForm').reset(); // Reset form on close
+            document.getElementById('addLoanForm').reset();
         }
 
         // --- Loan Management Functions ---
-        /**
-         * Adds a new loan to Firestore.
-         * @param {Event} event - The form submission event.
-         */
         async function addLoan(event) {
             event.preventDefault();
             if (!isAuthReady || !userId) {
-                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
+                window.showMessage('Authentication not ready. Please wait.', 'error');
                 return;
             }
 
@@ -162,7 +154,7 @@
             const rate = parseFloat(document.getElementById('loanRate').value);
 
             if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !dueDate || !phoneNumber || isNaN(rate) || rate < 0) {
-                window.showMessage('Please fill in all required fields correctly (including a valid rate).', 'error'); // Use window.showMessage
+                window.showMessage('Please fill in all required fields correctly (including a valid rate).', 'error');
                 return;
             }
 
@@ -170,34 +162,32 @@
                 await addDoc(collection(db, `artifacts/${appId}/users/${userId}/loans`), {
                     memberName: memberName,
                     loanAmount: loanAmount,
-                    amountPaid: 0, // Initially no amount paid
-                    dueDate: new Date(dueDate).getTime(), // Store as timestamp
+                    amountPaid: 0,
+                    dueDate: new Date(dueDate).getTime(),
                     phoneNumber: phoneNumber,
                     disbursementMessage: disbursementMessage,
-                    rate: rate, // Store the interest rate
-                    status: 'active', // Default status
-                    createdAt: Date.now() // Timestamp of creation
+                    rate: rate,
+                    status: 'active',
+                    createdAt: Date.now()
                 });
-                window.showMessage('Loan added successfully!', 'success'); // Use window.showMessage
-                window.closeAddLoanModal(); // Close modal after adding
+                window.showMessage('Loan added successfully!', 'success');
+                window.closeAddLoanModal();
             } catch (e) {
                 console.error("Error adding document: ", e);
-                window.showMessage(`Failed to add loan: ${e.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Failed to add loan: ${e.message}`, 'error');
             }
         }
 
-        /**
-         * Sets up a real-time listener for loans and updates the UI.
-         */
         function setupLoanListener() {
             if (!db || !userId) return;
 
-            const q = collection(db, `artifacts/${appId}/users/${userId}/loans`); // No orderBy for simplicity, sort in JS
+            const q = collection(db, `artifacts/${appId}/users/${userId}/loans`);
 
             onSnapshot(q, async (snapshot) => {
                 const loans = [];
                 const monthlyDisbursements = {};
                 const monthlyRepayments = {};
+                const monthlyAccruedInterest = {};
 
                 for (const docSnapshot of snapshot.docs) {
                     const loanData = { id: docSnapshot.id, ...docSnapshot.data() };
@@ -208,20 +198,43 @@
                     const monthKey = `${createdAtDate.getFullYear()}-${(createdAtDate.getMonth() + 1).toString().padStart(2, '0')}`;
                     monthlyDisbursements[monthKey] = (monthlyDisbursements[monthKey] || 0) + loanData.loanAmount;
 
-                    // Aggregate repayments by fetching subcollection
+                    // Aggregate repayments and calculate earned interest
                     const repaymentsSnapshot = await getDocs(collection(db, `artifacts/${appId}/users/${userId}/loans/${loanData.id}/repayments`));
                     repaymentsSnapshot.forEach(repaymentDoc => {
                         const repaymentData = repaymentDoc.data();
                         const repaidAtDate = new Date(repaymentData.repaidAt);
                         const repaymentMonthKey = `${repaidAtDate.getFullYear()}-${(repaidAtDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                        
+                        // Assuming repayment amount is split between principal and interest
+                        // For simplicity, we can assume the whole amount paid reduces the total payable first
+                        // To get true earned interest, you'd need a more complex calculation,
+                        // but for a simple view, we'll track repayments as "earned"
                         monthlyRepayments[repaymentMonthKey] = (monthlyRepayments[repaymentMonthKey] || 0) + repaymentData.amount;
                     });
+                    
+                    // Calculate monthly accrued interest
+                    const startDate = new Date(loanData.createdAt);
+                    const endDate = loanData.status === 'paid' ? new Date(loanData.dueDate) : new Date(); // Stop accrual once paid
+                    const principal = loanData.loanAmount;
+                    const rate = loanData.rate / 100;
+
+                    let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+                    while (currentDate.getTime() <= endDate.getTime() && currentDate.getTime() <= Date.now()) {
+                        const monthKey = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                        const dailyRate = rate / 365.25;
+                        const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                        const accruedForMonth = principal * dailyRate * daysInMonth;
+                        
+                        monthlyAccruedInterest[monthKey] = (monthlyAccruedInterest[monthKey] || 0) + accruedForMonth;
+                        
+                        currentDate.setMonth(currentDate.getMonth() + 1);
+                    }
                 }
                 displayLoans(loans);
-                displayReports(monthlyDisbursements, monthlyRepayments);
+                displayReports(monthlyDisbursements, monthlyRepayments, monthlyAccruedInterest);
             }, (error) => {
                 console.error("Error listening to loans: ", error);
-                window.showMessage(`Failed to load loans: ${error.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Failed to load loans: ${error.message}`, 'error');
             });
         }
 
@@ -231,9 +244,8 @@
          */
         function displayLoans(loans) {
             const loanListBody = document.getElementById('loanListBody');
-            loanListBody.innerHTML = ''; // Clear existing list
+            loanListBody.innerHTML = '';
 
-            // Sort loans by due date for better readability
             loans.sort((a, b) => a.dueDate - b.dueDate);
 
             const now = Date.now();
@@ -242,34 +254,30 @@
                 let statusClass = '';
                 let displayStatus = loan.status;
 
-                // Calculate amount payable based on rate (simple interest for the duration)
                 const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
-                // Remaining amount now accounts for the total amount payable (principal + interest)
                 const remainingAmount = amountPayable - loan.amountPaid;
 
                 const dueDateObj = new Date(loan.dueDate);
                 const timeDiff = loan.dueDate - now;
 
                 if (loan.status === 'paid' || remainingAmount <= 0) {
-                    statusClass = 'bg-green-100'; // Fully paid
+                    statusClass = 'bg-green-100';
                     displayStatus = 'Paid';
-                    // Update status in Firestore if needed (can be async)
                     if (loan.status !== 'paid') {
                         updateDoc(doc(db, `artifacts/${appId}/users/${userId}/loans`, loan.id), { status: 'paid' });
                     }
                 }
                 else if (timeDiff < 0) {
-                    statusClass = 'bg-red-100 font-bold'; // Overdue
+                    statusClass = 'bg-red-100 font-bold';
                     displayStatus = 'Overdue';
-                    // Update status in Firestore if needed (can be async)
                     if (loan.status !== 'overdue') {
                         updateDoc(doc(db, `artifacts/${appId}/users/${userId}/loans`, loan.id), { status: 'overdue' });
                     }
-                } else if (timeDiff < (7 * 24 * 60 * 60 * 1000)) { // Within 7 days
-                    statusClass = 'bg-yellow-100'; // Upcoming soon
+                } else if (timeDiff < (7 * 24 * 60 * 60 * 1000)) {
+                    statusClass = 'bg-yellow-100';
                     displayStatus = 'Upcoming';
                 } else {
-                    statusClass = 'bg-white'; // Active
+                    statusClass = 'bg-white';
                     displayStatus = 'Active';
                 }
 
@@ -295,21 +303,29 @@
         }
 
         /**
-         * Displays monthly disbursement and repayment reports.
+         * Displays monthly disbursement, repayment, and interest reports.
          * @param {Object} disbursements - Object with monthly total disbursed amounts.
          * @param {Object} repayments - Object with monthly total repaid amounts.
+         * @param {Object} accruedInterest - Object with monthly total accrued interest amounts.
          */
-        function displayReports(disbursements, repayments) {
+        function displayReports(disbursements, repayments, accruedInterest) {
             const disbursementsBody = document.getElementById('monthlyDisbursementsBody');
             disbursementsBody.innerHTML = '';
             const repaymentBody = document.getElementById('monthlyRepaymentsBody');
             repaymentBody.innerHTML = '';
+            const interestBody = document.getElementById('monthlyInterestBody');
+            interestBody.innerHTML = '';
 
-            const sortedMonths = [...new Set([...Object.keys(disbursements), ...Object.keys(repayments)])].sort();
+            const allMonths = [...new Set([
+                ...Object.keys(disbursements), 
+                ...Object.keys(repayments),
+                ...Object.keys(accruedInterest)
+            ])].sort();
 
-            sortedMonths.forEach(month => {
+            allMonths.forEach(month => {
                 const disbursedAmount = (disbursements[month] || 0).toFixed(2);
                 const repaidAmount = (repayments[month] || 0).toFixed(2);
+                const accruedAmount = (accruedInterest[month] || 0).toFixed(2);
 
                 const disburseRow = document.createElement('tr');
                 disburseRow.className = "border-b bg-white";
@@ -326,129 +342,108 @@
                     <td class="px-6 py-4">KES ${repaidAmount}</td>
                 `;
                 repaymentBody.appendChild(repayRow);
+
+                const interestRow = document.createElement('tr');
+                interestRow.className = "border-b bg-white";
+                interestRow.innerHTML = `
+                    <td class="px-6 py-4">${month}</td>
+                    <td class="px-6 py-4">KES ${accruedAmount}</td>
+                    <td class="px-6 py-4">KES ${repaidAmount}</td>
+                `;
+                interestBody.appendChild(interestRow);
             });
         }
 
-
-        /**
-         * Opens the repayment modal.
-         * @param {string} loanId - The ID of the loan to repay.
-         * @param {number} remainingAmount - The remaining amount of the loan.
-         */
-        function openRepayModal(loanId, remainingAmount) { // Module-scoped
+        // --- Repayment and Deletion Functions ---
+        function openRepayModal(loanId, remainingAmount) {
             document.getElementById('repayLoanId').value = loanId;
             document.getElementById('repayRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
-            document.getElementById('repayAmount').value = ''; // Clear previous input
-            document.getElementById('repayAmount').max = remainingAmount; // Set max value for input
-            document.getElementById('repayComment').value = ''; // Clear previous comment
+            document.getElementById('repayAmount').value = '';
+            document.getElementById('repayAmount').max = remainingAmount;
+            document.getElementById('repayComment').value = '';
             document.getElementById('repayModal').classList.remove('hidden');
         }
 
-        /**
-         * Closes the repayment modal.
-         */
-        window.closeRepayModal = function() { // Global for direct button click
+        window.closeRepayModal = function() {
             document.getElementById('repayModal').classList.add('hidden');
         }
 
-        /**
-         * Handles the loan repayment.
-         * @param {Event} event - The form submission event.
-         */
-        async function repayLoan(event) { // Module-scoped
+        async function repayLoan(event) {
             event.preventDefault();
-            console.log("repayLoan called. db:", db); // Added for debugging
             if (!isAuthReady || !userId) {
-                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
+                window.showMessage('Authentication not ready. Please wait.', 'error');
                 return;
             }
 
             const loanId = document.getElementById('repayLoanId').value;
             const repayAmount = parseFloat(document.getElementById('repayAmount').value);
-            const repayComment = document.getElementById('repayComment').value.trim(); // Get comment
-            // The remaining amount from the UI is now based on amountPayable
+            const repayComment = document.getElementById('repayComment').value.trim();
             const remainingAmountDisplay = parseFloat(document.getElementById('repayRemainingAmount').textContent.replace('KES ', ''));
 
             if (isNaN(repayAmount) || repayAmount <= 0 || repayAmount > remainingAmountDisplay) {
-                window.showMessage('Please enter a valid repayment amount, not exceeding the remaining balance.', 'error'); // Use window.showMessage
+                window.showMessage('Please enter a valid repayment amount, not exceeding the remaining balance.', 'error');
                 return;
             }
 
             try {
                 const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
-                const currentLoanSnapshot = await getDoc(loanRef); // getDoc is called here
+                const currentLoanSnapshot = await getDoc(loanRef);
 
                 if (!currentLoanSnapshot.exists()) {
-                    window.showMessage('Loan not found!', 'error'); // Use window.showMessage
+                    window.showMessage('Loan not found!', 'error');
                     return;
                 }
 
                 const currentLoanData = currentLoanSnapshot.data();
-                // Recalculate amountPayable from stored data to be accurate
                 const amountPayable = currentLoanData.loanAmount * (1 + (currentLoanData.rate / 100));
                 const newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
-                const newRemaining = amountPayable - newAmountPaid; // Remaining against total payable
+                const newRemaining = amountPayable - newAmountPaid;
 
                 let newStatus = currentLoanData.status;
-                if (newRemaining <= 0) { // Check against amountPayable
+                if (newRemaining <= 0) {
                     newStatus = 'paid';
                 } else if (new Date(currentLoanData.dueDate).getTime() < Date.now()) {
                     newStatus = 'overdue';
                 } else {
-                    newStatus = 'active'; // Or whatever its current active status is
+                    newStatus = 'active';
                 }
 
-                // Update the main loan document
                 await updateDoc(loanRef, {
                     amountPaid: newAmountPaid,
                     status: newStatus
                 });
 
-                // Record the individual repayment transaction in a subcollection
                 await addDoc(collection(loanRef, 'repayments'), {
                     amount: repayAmount,
                     repaidAt: Date.now(),
-                    comment: repayComment // Store the comment
+                    comment: repayComment
                 });
 
-                window.showMessage('Repayment recorded successfully!', 'success'); // Use window.showMessage
-                window.closeRepayModal(); // Use window.closeRepayModal
+                window.showMessage('Repayment recorded successfully!', 'success');
+                window.closeRepayModal();
             } catch (e) {
                 console.error("Error updating document or adding repayment: ", e);
-                window.showMessage(`Failed to record repayment: ${e.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Failed to record repayment: ${e.message}`, 'error');
             }
         }
 
-        /**
-         * Confirms deletion of a loan.
-         * @param {string} loanId - The ID of the loan to delete.
-         */
-        function confirmDeleteLoan(loanId) { // Module-scoped
+        function confirmDeleteLoan(loanId) {
             window.showModal('Confirm Delete', 'Are you sure you want to delete this loan? This action cannot be undone.', async () => {
-                await deleteLoan(loanId); // Call module-scoped function
+                await deleteLoan(loanId);
             });
         }
 
-        /**
-         * Deletes a loan from Firestore.
-         * @param {string} loanId - The ID of the loan to delete.
-         */
-        async function deleteLoan(loanId) { // Module-scoped
-            console.log("deleteLoan called. db:", db); // Added for debugging
+        async function deleteLoan(loanId) {
             if (!isAuthReady || !userId) {
-                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
+                window.showMessage('Authentication not ready. Please wait.', 'error');
                 return;
             }
             try {
-                // You might want to delete the repayments subcollection as well,
-                // but Firestore doesn't have a direct "delete subcollection" method.
-                // For this simple app, we'll just delete the main loan document.
-                // In a production app, you'd iterate and delete subdocuments.
                 await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId));
-                window.showMessage('Loan deleted successfully!', 'success'); // Use window.showMessage
+                window.showMessage('Loan deleted successfully!', 'success');
             } catch (e) {
                 console.error("Error removing document: ", e);
-                window.showMessage(`Failed to delete loan: ${e.message}`, 'error'); // Use window.showMessage
+                window.showMessage(`Failed to delete loan: ${e.message}`, 'error');
             }
         }
 
@@ -456,37 +451,32 @@
         window.onload = function() {
             initializeFirebase();
             document.getElementById('addLoanForm').addEventListener('submit', addLoan);
-            document.getElementById('repayForm').addEventListener('submit', repayLoan); // Attached directly, not window.
-            document.getElementById('closeRepayModalBtn').addEventListener('click', window.closeRepayModal); // Use window.closeRepayModal
-            document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal); // Use window.hideModal
+            document.getElementById('repayForm').addEventListener('submit', repayLoan);
+            document.getElementById('closeRepayModalBtn').addEventListener('click', window.closeRepayModal);
+            document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal);
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-            document.getElementById('loginForm').addEventListener('submit', handleLogin); // Attach login handler
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
 
-            // Event listeners for toggling add loan form
-            document.getElementById('showAddLoanFormBtn').addEventListener('click', window.openAddLoanModal); // Open modal on click
-            document.getElementById('cancelAddLoanBtn').addEventListener('click', window.closeAddLoanModal); // Close modal on cancel
+            document.getElementById('showAddLoanFormBtn').addEventListener('click', window.openAddLoanModal);
+            document.getElementById('cancelAddLoanBtn').addEventListener('click', window.closeAddLoanModal);
 
-            // Event delegation for Repay and Delete buttons
             document.getElementById('loanListBody').addEventListener('click', (event) => {
                 const target = event.target;
-                // Check if the clicked element is a button and has a data-action attribute
                 if (target.tagName === 'BUTTON' && target.dataset.action) {
                     const action = target.dataset.action;
                     const loanId = target.dataset.loanId;
 
                     if (action === 'repay') {
-                        // Pass the calculated remaining amount (which includes interest)
                         const remainingAmount = parseFloat(target.dataset.remainingAmount);
-                        openRepayModal(loanId, remainingAmount); // Call module-scoped function
+                        openRepayModal(loanId, remainingAmount);
                     } else if (action === 'delete') {
-                        confirmDeleteLoan(loanId); // Call module-scoped function
+                        confirmDeleteLoan(loanId);
                     }
                 }
             });
         };
     </script>
     <style>
-        /* Simple loader for login screen */
         .loader {
             border-top-color: #3498db;
             -webkit-animation: spinner 1.5s linear infinite;
@@ -552,7 +542,7 @@
             </table>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <div>
                 <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Disbursed</h3>
                 <div class="overflow-x-auto shadow-md rounded-lg">
@@ -584,6 +574,21 @@
                     </table>
                 </div>
             </div>
+        </div>
+
+        <div class="overflow-x-auto shadow-md rounded-lg">
+            <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Interest Report</h3>
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accrued Interest</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Earned Interest</th>
+                    </tr>
+                </thead>
+                <tbody id="monthlyInterestBody" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+            </table>
         </div>
     </div>
 
@@ -626,7 +631,6 @@
             </form>
         </div>
     </div>
-
 
     <div id="repayModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
