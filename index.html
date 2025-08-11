@@ -23,14 +23,12 @@
         // Using the appId directly from your firebaseConfig for consistency
         const appId = firebaseConfig.appId;
 
-        // The initialAuthToken is only for Canvas environment, not directly used for deployed Email/Password login
-        // const initialAuthToken = null; // Removed declaration as it's not used.
-
         let app, db, auth, userId = null;
         let isAuthReady = false;
 
         // --- Utility Functions ---
-        function showMessage(message, type = 'info') {
+        // Expose utility functions globally so onclick attributes can find them
+        window.showMessage = function(message, type = 'info') {
             const messageBox = document.getElementById('messageBox');
             const messageText = document.getElementById('messageText');
             messageText.textContent = message;
@@ -47,7 +45,7 @@
             }, 3000);
         }
 
-        function showModal(title, message, onConfirm = null) {
+        window.showModal = function(title, message, onConfirm = null) {
             document.getElementById('modalTitle').textContent = title;
             document.getElementById('modalMessage').textContent = message;
             const confirmBtn = document.getElementById('modalConfirmBtn');
@@ -57,17 +55,17 @@
                 confirmBtn.classList.remove('hidden');
                 confirmBtn.onclick = () => {
                     onConfirm();
-                    hideModal();
+                    window.hideModal(); // Use window.hideModal for global access
                 };
-                cancelBtn.onclick = hideModal;
+                cancelBtn.onclick = window.hideModal; // Use window.hideModal for global access
             } else {
                 confirmBtn.classList.add('hidden');
-                cancelBtn.onclick = hideModal;
+                cancelBtn.onclick = window.hideModal; // Use window.hideModal for global access
             }
             document.getElementById('modalBackdrop').classList.remove('hidden');
         }
 
-        function hideModal() {
+        window.hideModal = function() {
             document.getElementById('modalBackdrop').classList.add('hidden');
         }
 
@@ -88,22 +86,20 @@
                         document.getElementById('mainApp').classList.remove('hidden');
                         document.getElementById('loggedInUserId').textContent = `User ID: ${userId}`;
                         setupLoanListener(); // Start listening for loan data once authenticated
-                        showMessage('Welcome! You are logged in.', 'success');
+                        showLoanListView(); // Show loan list by default
+                        window.showMessage('Welcome! You are logged in.', 'success'); // Use window.showMessage
                     } else {
                         userId = null;
                         isAuthReady = false;
                         document.getElementById('loginScreen').classList.remove('hidden');
                         document.getElementById('mainApp').classList.add('hidden');
-                        showMessage('Please log in to continue.', 'info');
+                        window.showMessage('Please log in to continue.', 'info'); // Use window.showMessage
                     }
                 });
 
-                // No automatic signInAnonymously or signInWithCustomToken here
-                // User will manually log in via the form
-
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
-                showMessage(`Error: ${error.message}`, 'error');
+                window.showMessage(`Error: ${error.message}`, 'error'); // Use window.showMessage
             }
         }
 
@@ -113,31 +109,44 @@
             const password = document.getElementById('loginPassword').value;
 
             if (!email || !password) {
-                showMessage('Please enter both email and password.', 'error');
+                window.showMessage('Please enter both email and password.', 'error'); // Use window.showMessage
                 return;
             }
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                showMessage('Logged in successfully!', 'success');
-                // onAuthStateChanged listener will handle UI update
+                window.showMessage('Logged in successfully!', 'success'); // Use window.showMessage
+                // onAuthStateChanged listener will handle UI update and call showLoanListView()
             } catch (error) {
                 console.error("Error logging in:", error);
-                showMessage(`Login failed: ${error.message}`, 'error');
+                window.showMessage(`Login failed: ${error.message}`, 'error'); // Use window.showMessage
             }
         }
 
         async function handleLogout() {
             try {
                 await signOut(auth);
-                showMessage('Logged out successfully.', 'info');
+                window.showMessage('Logged out successfully.', 'info'); // Use window.showMessage
             } catch (error) {
                 console.error("Error logging out:", error);
-                showMessage(`Error logging out: ${error.message}`, 'error');
+                window.showMessage(`Error logging out: ${error.message}`, 'error'); // Use window.showMessage
             }
         }
 
-        // --- Loan Management Functions (Unchanged from previous version) ---
+        // --- View Management Functions ---
+        function showAddLoanFormView() {
+            document.getElementById('loanControlsContainer').classList.add('hidden');
+            document.getElementById('loanFormContainer').classList.remove('hidden');
+        }
+
+        function showLoanListView() {
+            document.getElementById('loanFormContainer').classList.add('hidden');
+            document.getElementById('loanControlsContainer').classList.remove('hidden');
+            // Ensure the add loan form is reset when returning to list view
+            document.getElementById('addLoanForm').reset();
+        }
+
+        // --- Loan Management Functions ---
         /**
          * Adds a new loan to Firestore.
          * @param {Event} event - The form submission event.
@@ -145,7 +154,7 @@
         async function addLoan(event) {
             event.preventDefault();
             if (!isAuthReady || !userId) {
-                showMessage('Authentication not ready. Please wait.', 'error');
+                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
                 return;
             }
 
@@ -157,7 +166,7 @@
             const rate = parseFloat(document.getElementById('loanRate').value);
 
             if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !dueDate || !phoneNumber || isNaN(rate) || rate < 0) {
-                showMessage('Please fill in all required fields correctly (including a valid rate).', 'error');
+                window.showMessage('Please fill in all required fields correctly (including a valid rate).', 'error'); // Use window.showMessage
                 return;
             }
 
@@ -173,11 +182,11 @@
                     status: 'active', // Default status
                     createdAt: Date.now() // Timestamp of creation
                 });
-                showMessage('Loan added successfully!', 'success');
-                document.getElementById('addLoanForm').reset();
+                window.showMessage('Loan added successfully!', 'success'); // Use window.showMessage
+                showLoanListView(); // Go back to loan list after adding
             } catch (e) {
                 console.error("Error adding document: ", e);
-                showMessage(`Failed to add loan: ${e.message}`, 'error');
+                window.showMessage(`Failed to add loan: ${e.message}`, 'error'); // Use window.showMessage
             }
         }
 
@@ -216,7 +225,7 @@
                 displayReports(monthlyDisbursements, monthlyRepayments);
             }, (error) => {
                 console.error("Error listening to loans: ", error);
-                showMessage(`Failed to load loans: ${error.message}`, 'error');
+                window.showMessage(`Failed to load loans: ${error.message}`, 'error'); // Use window.showMessage
             });
         }
 
@@ -285,8 +294,8 @@
                     <td class="px-6 py-4">${loan.disbursementMessage}</td>
                     <td class="px-6 py-4">${displayStatus}</td>
                     <td class="px-6 py-4 text-right">
-                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" onclick="openRepayModal('${loan.id}', ${remainingAmount})">Repay</button>
-                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" onclick="confirmDeleteLoan('${loan.id}')">Delete</button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" onclick="window.openRepayModal('${loan.id}', ${remainingAmount})">Repay</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" onclick="window.confirmDeleteLoan('${loan.id}')">Delete</button>
                     </td>
                 `;
                 loanListBody.appendChild(row);
@@ -334,7 +343,7 @@
          * @param {string} loanId - The ID of the loan to repay.
          * @param {number} remainingAmount - The remaining amount of the loan.
          */
-        function openRepayModal(loanId, remainingAmount) {
+        window.openRepayModal = function(loanId, remainingAmount) { // Make global
             document.getElementById('repayLoanId').value = loanId;
             document.getElementById('repayRemainingAmount').textContent = `$${remainingAmount.toFixed(2)}`;
             document.getElementById('repayAmount').value = ''; // Clear previous input
@@ -345,7 +354,7 @@
         /**
          * Closes the repayment modal.
          */
-        function closeRepayModal() {
+        window.closeRepayModal = function() { // Make global
             document.getElementById('repayModal').classList.add('hidden');
         }
 
@@ -356,7 +365,7 @@
         async function repayLoan(event) {
             event.preventDefault();
             if (!isAuthReady || !userId) {
-                showMessage('Authentication not ready. Please wait.', 'error');
+                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
                 return;
             }
 
@@ -365,7 +374,7 @@
             const remainingAmount = parseFloat(document.getElementById('repayRemainingAmount').textContent.replace('$', ''));
 
             if (isNaN(repayAmount) || repayAmount <= 0 || repayAmount > remainingAmount) {
-                showMessage('Please enter a valid repayment amount.', 'error');
+                window.showMessage('Please enter a valid repayment amount.', 'error'); // Use window.showMessage
                 return;
             }
 
@@ -374,7 +383,7 @@
                 const currentLoanSnapshot = await getDoc(loanRef);
 
                 if (!currentLoanSnapshot.exists()) {
-                    showMessage('Loan not found!', 'error');
+                    window.showMessage('Loan not found!', 'error'); // Use window.showMessage
                     return;
                 }
 
@@ -403,11 +412,11 @@
                     repaidAt: Date.now()
                 });
 
-                showMessage('Repayment recorded successfully!', 'success');
-                closeRepayModal();
+                window.showMessage('Repayment recorded successfully!', 'success'); // Use window.showMessage
+                window.closeRepayModal(); // Use window.closeRepayModal
             } catch (e) {
                 console.error("Error updating document or adding repayment: ", e);
-                showMessage(`Failed to record repayment: ${e.message}`, 'error');
+                window.showMessage(`Failed to record repayment: ${e.message}`, 'error'); // Use window.showMessage
             }
         }
 
@@ -415,9 +424,9 @@
          * Confirms deletion of a loan.
          * @param {string} loanId - The ID of the loan to delete.
          */
-        function confirmDeleteLoan(loanId) {
-            showModal('Confirm Delete', 'Are you sure you want to delete this loan? This action cannot be undone.', async () => {
-                await deleteLoan(loanId);
+        window.confirmDeleteLoan = function(loanId) { // Make global
+            window.showModal('Confirm Delete', 'Are you sure you want to delete this loan? This action cannot be undone.', async () => {
+                await window.deleteLoan(loanId); // Use window.deleteLoan
             });
         }
 
@@ -425,9 +434,9 @@
          * Deletes a loan from Firestore.
          * @param {string} loanId - The ID of the loan to delete.
          */
-        async function deleteLoan(loanId) {
+        window.deleteLoan = async function(loanId) { // Make global
             if (!isAuthReady || !userId) {
-                showMessage('Authentication not ready. Please wait.', 'error');
+                window.showMessage('Authentication not ready. Please wait.', 'error'); // Use window.showMessage
                 return;
             }
             try {
@@ -436,10 +445,10 @@
                 // For this simple app, we'll just delete the main loan document.
                 // In a production app, you'd iterate and delete subdocuments.
                 await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId));
-                showMessage('Loan deleted successfully!', 'success');
+                window.showMessage('Loan deleted successfully!', 'success'); // Use window.showMessage
             } catch (e) {
                 console.error("Error removing document: ", e);
-                showMessage(`Failed to delete loan: ${e.message}`, 'error');
+                window.showMessage(`Failed to delete loan: ${e.message}`, 'error'); // Use window.showMessage
             }
         }
 
@@ -448,10 +457,13 @@
             initializeFirebase();
             document.getElementById('addLoanForm').addEventListener('submit', addLoan);
             document.getElementById('repayForm').addEventListener('submit', repayLoan);
-            document.getElementById('closeRepayModalBtn').addEventListener('click', closeRepayModal);
-            document.getElementById('modalCancelBtn').addEventListener('click', hideModal);
+            document.getElementById('closeRepayModalBtn').addEventListener('click', window.closeRepayModal); // Use window.closeRepayModal
+            document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal); // Use window.hideModal
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-            document.getElementById('loginForm').addEventListener('submit', handleLogin); // New: Attach login handler
+            document.getElementById('loginForm').addEventListener('submit', handleLogin); // Attach login handler
+            // New event listeners for toggling add loan form
+            document.getElementById('showAddLoanFormBtn').addEventListener('click', showAddLoanFormView);
+            document.getElementById('cancelAddLoanBtn').addEventListener('click', showLoanListView);
         };
     </script>
     <style>
@@ -490,34 +502,43 @@
             </div>
             <p id="loggedInUserId" class="text-sm text-gray-600 mb-6"></p>
 
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Add New Loan</h2>
-            <form id="addLoanForm" class="space-y-4">
-                <div>
-                    <label for="memberName" class="block text-sm font-medium text-gray-700">Member Name</label>
-                    <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="loanAmount" class="block text-sm font-medium text-gray-700">Loan Amount ($)</label>
-                    <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest Rate (%)</label>
-                    <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
-                    <input type="date" id="dueDate" name="dueDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="phoneNumber" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                    <input type="tel" id="phoneNumber" name="phoneNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="disbursementMessage" class="block text-sm font-medium text-gray-700">Disbursement Message</label>
-                    <textarea id="disbursementMessage" name="disbursementMessage" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
-                </div>
-                <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add Loan</button>
-            </form>
+            <!-- Container for "Add New Loan" button -->
+            <div id="loanControlsContainer">
+                <button id="showAddLoanFormBtn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add New Loan</button>
+            </div>
+
+            <!-- Container for Add Loan Form (hidden by default) -->
+            <div id="loanFormContainer" class="hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Add New Loan</h2>
+                <form id="addLoanForm" class="space-y-4">
+                    <div>
+                        <label for="memberName" class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="memberName" name="memberName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="loanAmount" class="block text-sm font-medium text-gray-700">Amount (Kes)</label>
+                        <input type="number" id="loanAmount" name="loanAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="loanRate" class="block text-sm font-medium text-gray-700">Interest (%)</label>
+                        <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
+                        <input type="date" id="dueDate" name="dueDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="phoneNumber" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                        <input type="tel" id="phoneNumber" name="phoneNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="disbursementMessage" class="block text-sm font-medium text-gray-700">Disbursement Message</label>
+                        <textarea id="disbursementMessage" name="disbursementMessage" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200">Add Loan</button>
+                    <button type="button" id="cancelAddLoanBtn" class="w-full bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 transition duration-200 mt-2">Cancel</button>
+                </form>
+            </div>
         </div>
 
         <div class="md:w-2/3 p-4">
@@ -597,7 +618,7 @@
                 <input type="hidden" id="repayLoanId">
                 <p class="text-gray-700">Remaining Amount: <span id="repayRemainingAmount" class="font-semibold text-blue-600"></span></p>
                 <div>
-                    <label for="repayAmount" class="block text-sm font-medium text-gray-700">Repay Amount ($)</label>
+                    <label for="repayAmount" class="block text-sm font-medium text-gray-700">Repay Amount (Kes)</label>
                     <input type="number" id="repayAmount" name="repayAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div class="flex justify-end space-x-3">
