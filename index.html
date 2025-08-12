@@ -160,12 +160,6 @@
                 document.getElementById('detailsDisbursementMessage').textContent = loan.disbursementMessage;
                 document.getElementById('detailsLoanStatus').textContent = loan.status;
 
-                // Set up the interest-only repayment button
-                document.getElementById('interestRepayButton').dataset.loanId = loanId;
-                document.getElementById('interestRepayButton').dataset.interestAmount = interestAmount;
-                document.getElementById('interestRepayButton').dataset.duration = loan.duration;
-                document.getElementById('interestRepayButton').style.display = 'block';
-
                 document.getElementById('loanDetailsModal').classList.remove('hidden');
             } else {
                 window.showMessage('Loan details not found.', 'error');
@@ -212,7 +206,7 @@
                     phoneNumber: phoneNumber,
                     disbursementMessage: disbursementMessage,
                     rate: rate,
-                    duration: duration, // Store the duration
+                    duration: duration,
                     status: 'active',
                     createdAt: Date.now()
                 });
@@ -320,7 +314,7 @@
                     <td class="px-6 py-4">KES ${loan.loanAmount.toFixed(2)}</td>
                     <td class="px-6 py-4">KES ${amountPayable.toFixed(2)}</td>
                     <td class="px-6 py-4 text-right">
-                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-remaining-amount="${remainingAmount}" onclick="event.stopPropagation()">Repay</button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-loan-rate="${loan.rate}" data-loan-amount="${loan.loanAmount}" data-loan-duration="${loan.duration}" data-remaining-amount="${remainingAmount}" onclick="event.stopPropagation()">Repay</button>
                         <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" data-action="delete" data-loan-id="${loan.id}" onclick="event.stopPropagation()">Delete</button>
                     </td>
                 `;
@@ -380,61 +374,21 @@
         }
 
         // --- Repayment and Deletion Functions ---
-        function openRepayModal(loanId, remainingAmount) {
+        function openRepayModal(loanId, loanAmount, loanRate, loanDuration, remainingAmount) {
+            const interestAmount = loanAmount * (loanRate / 100);
+            
             document.getElementById('repayLoanId').value = loanId;
             document.getElementById('repayRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
+            document.getElementById('repayLoanInterest').textContent = `KES ${interestAmount.toFixed(2)}`;
+            document.getElementById('interestOnlyCheckbox').checked = false;
             document.getElementById('repayAmount').value = '';
             document.getElementById('repayAmount').max = remainingAmount;
+            document.getElementById('repayAmount').disabled = false;
             document.getElementById('repayComment').value = '';
+            document.getElementById('repayDuration').value = loanDuration;
+
             document.getElementById('repayModal').classList.remove('hidden');
         }
-        
-        async function repayInterestOnly(loanId, interestAmount, duration) {
-            if (!isAuthReady || !userId) {
-                window.showMessage('Authentication not ready. Please wait.', 'error');
-                return;
-            }
-            
-            const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
-            const currentLoanSnapshot = await getDoc(loanRef);
-
-            if (!currentLoanSnapshot.exists()) {
-                window.showMessage('Loan not found!', 'error');
-                return;
-            }
-
-            const currentLoanData = currentLoanSnapshot.data();
-            const newAmountPaid = (currentLoanData.amountPaid || 0) + interestAmount;
-            let newDueDate = new Date();
-            
-            // Recalculate new due date based on the original duration
-            if (duration === '2-weeks') {
-                newDueDate.setDate(newDueDate.getDate() + 14);
-            } else if (duration === '1-month') {
-                newDueDate.setMonth(newDueDate.getMonth() + 1);
-            }
-            
-            try {
-                await updateDoc(loanRef, {
-                    amountPaid: newAmountPaid,
-                    dueDate: newDueDate.getTime(),
-                    status: 'active'
-                });
-                
-                await addDoc(collection(loanRef, 'repayments'), {
-                    amount: interestAmount,
-                    repaidAt: Date.now(),
-                    comment: 'Interest-only repayment'
-                });
-
-                window.showMessage('Interest-only repayment recorded successfully! Loan duration extended.', 'success');
-                window.closeLoanDetailsModal();
-            } catch (e) {
-                console.error("Error updating loan or adding repayment: ", e);
-                window.showMessage(`Failed to record interest-only repayment: ${e.message}`, 'error');
-            }
-        }
-
 
         window.closeRepayModal = function() {
             document.getElementById('repayModal').classList.add('hidden');
@@ -446,14 +400,15 @@
                 window.showMessage('Authentication not ready. Please wait.', 'error');
                 return;
             }
-
+            
             const loanId = document.getElementById('repayLoanId').value;
-            const repayAmount = parseFloat(document.getElementById('repayAmount').value);
+            let repayAmount = parseFloat(document.getElementById('repayAmount').value);
             const repayComment = document.getElementById('repayComment').value.trim();
-            const remainingAmountDisplay = parseFloat(document.getElementById('repayRemainingAmount').textContent.replace('KES ', ''));
+            const interestOnly = document.getElementById('interestOnlyCheckbox').checked;
+            const loanDuration = document.getElementById('repayDuration').value;
 
-            if (isNaN(repayAmount) || repayAmount <= 0 || repayAmount > remainingAmountDisplay) {
-                window.showMessage('Please enter a valid repayment amount, not exceeding the remaining balance.', 'error');
+            if (isNaN(repayAmount) || repayAmount <= 0) {
+                window.showMessage('Please enter a valid repayment amount.', 'error');
                 return;
             }
 
@@ -465,16 +420,30 @@
                     window.showMessage('Loan not found!', 'error');
                     return;
                 }
-
+                
                 const currentLoanData = currentLoanSnapshot.data();
+                let newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
+                let newDueDate = currentLoanData.dueDate;
+
+                if (interestOnly) {
+                    repayAmount = currentLoanData.loanAmount * (currentLoanData.rate / 100);
+                    newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
+                    newDueDate = new Date();
+                    if (loanDuration === '2-weeks') {
+                        newDueDate.setDate(newDueDate.getDate() + 14);
+                    } else if (loanDuration === '1-month') {
+                        newDueDate.setMonth(newDueDate.getMonth() + 1);
+                    }
+                    newDueDate = newDueDate.getTime();
+                }
+
                 const amountPayable = currentLoanData.loanAmount * (1 + (currentLoanData.rate / 100));
-                const newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
                 const newRemaining = amountPayable - newAmountPaid;
 
                 let newStatus = currentLoanData.status;
                 if (newRemaining <= 0) {
                     newStatus = 'paid';
-                } else if (new Date(currentLoanData.dueDate).getTime() < Date.now()) {
+                } else if (new Date(newDueDate).getTime() < Date.now()) {
                     newStatus = 'overdue';
                 } else {
                     newStatus = 'active';
@@ -482,13 +451,14 @@
 
                 await updateDoc(loanRef, {
                     amountPaid: newAmountPaid,
+                    dueDate: newDueDate,
                     status: newStatus
                 });
 
                 await addDoc(collection(loanRef, 'repayments'), {
                     amount: repayAmount,
                     repaidAt: Date.now(),
-                    comment: repayComment
+                    comment: repayComment || (interestOnly ? 'Interest-only repayment' : 'Partial/Full repayment')
                 });
 
                 window.showMessage('Repayment recorded successfully!', 'success');
@@ -542,7 +512,10 @@
                         const action = target.dataset.action;
                         if (action === 'repay') {
                             const remainingAmount = parseFloat(target.dataset.remainingAmount);
-                            openRepayModal(loanId, remainingAmount);
+                            const loanAmount = parseFloat(target.dataset.loanAmount);
+                            const loanRate = parseFloat(target.dataset.loanRate);
+                            const loanDuration = target.dataset.loanDuration;
+                            openRepayModal(loanId, loanAmount, loanRate, loanDuration, remainingAmount);
                         } else if (action === 'delete') {
                             confirmDeleteLoan(loanId);
                         }
@@ -553,14 +526,16 @@
                 }
             });
 
-            document.getElementById('interestRepayButton').addEventListener('click', (event) => {
-                const loanId = event.target.dataset.loanId;
-                const interestAmount = parseFloat(event.target.dataset.interestAmount);
-                const duration = event.target.dataset.duration;
-
-                window.showModal('Confirm Interest Repayment', `Are you sure you want to record an interest-only payment of KES ${interestAmount.toFixed(2)} and extend the loan for another duration?`, () => {
-                    repayInterestOnly(loanId, interestAmount, duration);
-                });
+            document.getElementById('interestOnlyCheckbox').addEventListener('change', (event) => {
+                const repayAmountInput = document.getElementById('repayAmount');
+                const loanInterest = parseFloat(document.getElementById('repayLoanInterest').textContent.replace('KES ', ''));
+                if (event.target.checked) {
+                    repayAmountInput.value = loanInterest.toFixed(2);
+                    repayAmountInput.disabled = true;
+                } else {
+                    repayAmountInput.value = '';
+                    repayAmountInput.disabled = false;
+                }
             });
         };
     </script>
@@ -723,7 +698,15 @@
             <h3 class="text-xl font-bold mb-4 text-gray-800">Record Repayment</h3>
             <form id="repayForm" class="space-y-4">
                 <input type="hidden" id="repayLoanId">
+                <input type="hidden" id="repayDuration">
                 <p class="text-gray-700">Remaining Amount: <span class="font-semibold text-blue-600" id="repayRemainingAmount"></span></p>
+                <p class="text-gray-700">Interest Amount: <span class="font-semibold text-purple-600" id="repayLoanInterest"></span></p>
+                <div>
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" id="interestOnlyCheckbox" class="rounded text-purple-600 focus:ring-purple-500">
+                        <span class="text-sm font-medium text-gray-700">Repay Interest Only & Extend</span>
+                    </label>
+                </div>
                 <div>
                     <label for="repayAmount" class="block text-sm font-medium text-gray-700">Repay Amount (KES)</label>
                     <input type="number" id="repayAmount" name="repayAmount" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
@@ -768,9 +751,6 @@
                 <p><strong>Phone Number:</strong> <span id="detailsPhoneNumber"></span></p>
                 <p><strong>Disbursement Message:</strong> <span id="detailsDisbursementMessage"></span></p>
                 <p><strong>Status:</strong> <span id="detailsLoanStatus"></span></p>
-            </div>
-            <div class="flex justify-end mt-6">
-                <button id="interestRepayButton" class="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition duration-200" style="display: none;">Repay Interest Only & Extend</button>
             </div>
         </div>
     </div>
