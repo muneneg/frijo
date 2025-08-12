@@ -402,7 +402,8 @@
             }
             
             const loanId = document.getElementById('repayLoanId').value;
-            let repayAmount = parseFloat(document.getElementById('repayAmount').value);
+            let repayAmountInput = document.getElementById('repayAmount');
+            let repayAmount = parseFloat(repayAmountInput.value);
             const repayComment = document.getElementById('repayComment').value.trim();
             const interestOnly = document.getElementById('interestOnlyCheckbox').checked;
             const loanDuration = document.getElementById('repayDuration').value;
@@ -422,12 +423,13 @@
                 }
                 
                 const currentLoanData = currentLoanSnapshot.data();
-                let newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
+                let newAmountPaid = (currentLoanData.amountPaid || 0);
                 let newDueDate = currentLoanData.dueDate;
 
                 if (interestOnly) {
-                    repayAmount = currentLoanData.loanAmount * (currentLoanData.rate / 100);
-                    newAmountPaid = (currentLoanData.amountPaid || 0) + repayAmount;
+                    const interestAmount = currentLoanData.loanAmount * (currentLoanData.rate / 100);
+                    repayAmount = interestAmount; // Ensure repay amount is correct for interest-only
+                    newAmountPaid += repayAmount;
                     newDueDate = new Date();
                     if (loanDuration === '2-weeks') {
                         newDueDate.setDate(newDueDate.getDate() + 14);
@@ -435,8 +437,16 @@
                         newDueDate.setMonth(newDueDate.getMonth() + 1);
                     }
                     newDueDate = newDueDate.getTime();
+                } else {
+                    const amountPayable = currentLoanData.loanAmount * (1 + (currentLoanData.rate / 100));
+                    const remainingAmount = amountPayable - currentLoanData.amountPaid;
+                    if (repayAmount > remainingAmount) {
+                         window.showMessage('Repayment amount cannot exceed the remaining balance.', 'error');
+                         return;
+                    }
+                    newAmountPaid += repayAmount;
                 }
-
+                
                 const amountPayable = currentLoanData.loanAmount * (1 + (currentLoanData.rate / 100));
                 const newRemaining = amountPayable - newAmountPaid;
 
