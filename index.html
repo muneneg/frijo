@@ -137,6 +137,37 @@
             document.getElementById('addLoanModal').classList.add('hidden');
             document.getElementById('addLoanForm').reset();
         }
+        
+        window.openLoanDetailsModal = async function(loanId) {
+            const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
+            const loanSnap = await getDoc(loanRef);
+
+            if (loanSnap.exists()) {
+                const loan = loanSnap.data();
+                const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
+                const remainingAmount = amountPayable - loan.amountPaid;
+                const dueDateObj = new Date(loan.dueDate);
+
+                document.getElementById('detailsMemberName').textContent = loan.memberName;
+                document.getElementById('detailsLoanAmount').textContent = `KES ${loan.loanAmount.toFixed(2)}`;
+                document.getElementById('detailsAmountPaid').textContent = `KES ${loan.amountPaid.toFixed(2)}`;
+                document.getElementById('detailsRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
+                document.getElementById('detailsAmountPayable').textContent = `KES ${amountPayable.toFixed(2)}`;
+                document.getElementById('detailsLoanRate').textContent = `${loan.rate.toFixed(2)}%`;
+                document.getElementById('detailsDueDate').textContent = dueDateObj.toLocaleDateString();
+                document.getElementById('detailsPhoneNumber').textContent = loan.phoneNumber;
+                document.getElementById('detailsDisbursementMessage').textContent = loan.disbursementMessage;
+                document.getElementById('detailsLoanStatus').textContent = loan.status;
+
+                document.getElementById('loanDetailsModal').classList.remove('hidden');
+            } else {
+                window.showMessage('Loan details not found.', 'error');
+            }
+        };
+
+        window.closeLoanDetailsModal = function() {
+            document.getElementById('loanDetailsModal').classList.add('hidden');
+        };
 
         // --- Loan Management Functions ---
         async function addLoan(event) {
@@ -148,14 +179,21 @@
 
             const memberName = document.getElementById('memberName').value.trim();
             const loanAmount = parseFloat(document.getElementById('loanAmount').value);
-            const dueDate = document.getElementById('dueDate').value;
+            const duration = document.getElementById('loanDuration').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const disbursementMessage = document.getElementById('disbursementMessage').value.trim();
             const rate = parseFloat(document.getElementById('loanRate').value);
 
-            if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !dueDate || !phoneNumber || isNaN(rate) || rate < 0) {
-                window.showMessage('Please fill in all required fields correctly (including a valid rate).', 'error');
+            if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !duration || !phoneNumber || isNaN(rate) || rate < 0) {
+                window.showMessage('Please fill in all required fields correctly.', 'error');
                 return;
+            }
+
+            let dueDate = new Date();
+            if (duration === '2-weeks') {
+                dueDate.setDate(dueDate.getDate() + 14);
+            } else if (duration === '1-month') {
+                dueDate.setMonth(dueDate.getMonth() + 1);
             }
 
             try {
@@ -163,7 +201,7 @@
                     memberName: memberName,
                     loanAmount: loanAmount,
                     amountPaid: 0,
-                    dueDate: new Date(dueDate).getTime(),
+                    dueDate: dueDate.getTime(),
                     phoneNumber: phoneNumber,
                     disbursementMessage: disbursementMessage,
                     rate: rate,
@@ -187,51 +225,32 @@
                 const loans = [];
                 const monthlyDisbursements = {};
                 const monthlyRepayments = {};
-                const monthlyAccruedInterest = {};
+                const monthlyInterest = {};
 
                 for (const docSnapshot of snapshot.docs) {
                     const loanData = { id: docSnapshot.id, ...docSnapshot.data() };
                     loans.push(loanData);
 
-                    // Aggregate disbursements
+                    // Aggregate disbursements and calculate interest for that month
                     const createdAtDate = new Date(loanData.createdAt);
                     const monthKey = `${createdAtDate.getFullYear()}-${(createdAtDate.getMonth() + 1).toString().padStart(2, '0')}`;
                     monthlyDisbursements[monthKey] = (monthlyDisbursements[monthKey] || 0) + loanData.loanAmount;
 
-                    // Aggregate repayments and calculate earned interest
+                    // Calculate total interest for loans disbursed in that month
+                    const loanInterest = loanData.loanAmount * (loanData.rate / 100);
+                    monthlyInterest[monthKey] = (monthlyInterest[monthKey] || 0) + loanInterest;
+                    
+                    // Aggregate repayments
                     const repaymentsSnapshot = await getDocs(collection(db, `artifacts/${appId}/users/${userId}/loans/${loanData.id}/repayments`));
                     repaymentsSnapshot.forEach(repaymentDoc => {
                         const repaymentData = repaymentDoc.data();
                         const repaidAtDate = new Date(repaymentData.repaidAt);
                         const repaymentMonthKey = `${repaidAtDate.getFullYear()}-${(repaidAtDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        
-                        // Assuming repayment amount is split between principal and interest
-                        // For simplicity, we can assume the whole amount paid reduces the total payable first
-                        // To get true earned interest, you'd need a more complex calculation,
-                        // but for a simple view, we'll track repayments as "earned"
                         monthlyRepayments[repaymentMonthKey] = (monthlyRepayments[repaymentMonthKey] || 0) + repaymentData.amount;
                     });
-                    
-                    // Calculate monthly accrued interest
-                    const startDate = new Date(loanData.createdAt);
-                    const endDate = loanData.status === 'paid' ? new Date(loanData.dueDate) : new Date(); // Stop accrual once paid
-                    const principal = loanData.loanAmount;
-                    const rate = loanData.rate / 100;
-
-                    let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-                    while (currentDate.getTime() <= endDate.getTime() && currentDate.getTime() <= Date.now()) {
-                        const monthKey = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        const dailyRate = rate / 365.25;
-                        const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-                        const accruedForMonth = principal * dailyRate * daysInMonth;
-                        
-                        monthlyAccruedInterest[monthKey] = (monthlyAccruedInterest[monthKey] || 0) + accruedForMonth;
-                        
-                        currentDate.setMonth(currentDate.getMonth() + 1);
-                    }
                 }
                 displayLoans(loans);
-                displayReports(monthlyDisbursements, monthlyRepayments, monthlyAccruedInterest);
+                displayReports(monthlyDisbursements, monthlyRepayments, monthlyInterest);
             }, (error) => {
                 console.error("Error listening to loans: ", error);
                 window.showMessage(`Failed to load loans: ${error.message}`, 'error');
@@ -259,6 +278,11 @@
 
                 const dueDateObj = new Date(loan.dueDate);
                 const timeDiff = loan.dueDate - now;
+                
+                // Mask the phone number
+                const maskedPhoneNumber = loan.phoneNumber ? 
+                    `${loan.phoneNumber.substring(0, 3)}****${loan.phoneNumber.substring(loan.phoneNumber.length - 3)}` : 
+                    'N/A';
 
                 if (loan.status === 'paid' || remainingAmount <= 0) {
                     statusClass = 'bg-green-100';
@@ -281,21 +305,15 @@
                     displayStatus = 'Active';
                 }
 
-                row.className = `border-b ${statusClass}`;
+                row.className = `border-b ${statusClass} cursor-pointer hover:bg-gray-50`;
+                row.dataset.loanId = loan.id;
                 row.innerHTML = `
                     <td class="px-6 py-4">${loan.memberName}</td>
                     <td class="px-6 py-4">KES ${loan.loanAmount.toFixed(2)}</td>
-                    <td class="px-6 py-4">KES ${loan.amountPaid.toFixed(2)}</td>
-                    <td class="px-6 py-4">KES ${remainingAmount.toFixed(2)}</td>
                     <td class="px-6 py-4">KES ${amountPayable.toFixed(2)}</td>
-                    <td class="px-6 py-4">${loan.rate.toFixed(2)}%</td>
-                    <td class="px-6 py-4">${dueDateObj.toLocaleDateString()}</td>
-                    <td class="px-6 py-4">${loan.phoneNumber}</td>
-                    <td class="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis max-w-xs">${loan.disbursementMessage}</td>
-                    <td class="px-6 py-4">${displayStatus}</td>
                     <td class="px-6 py-4 text-right">
-                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-remaining-amount="${remainingAmount}">Repay</button>
-                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" data-action="delete" data-loan-id="${loan.id}">Delete</button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-remaining-amount="${remainingAmount}" onclick="event.stopPropagation()">Repay</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" data-action="delete" data-loan-id="${loan.id}" onclick="event.stopPropagation()">Delete</button>
                     </td>
                 `;
                 loanListBody.appendChild(row);
@@ -306,9 +324,9 @@
          * Displays monthly disbursement, repayment, and interest reports.
          * @param {Object} disbursements - Object with monthly total disbursed amounts.
          * @param {Object} repayments - Object with monthly total repaid amounts.
-         * @param {Object} accruedInterest - Object with monthly total accrued interest amounts.
+         * @param {Object} interest - Object with monthly total interest amounts.
          */
-        function displayReports(disbursements, repayments, accruedInterest) {
+        function displayReports(disbursements, repayments, interest) {
             const disbursementsBody = document.getElementById('monthlyDisbursementsBody');
             disbursementsBody.innerHTML = '';
             const repaymentBody = document.getElementById('monthlyRepaymentsBody');
@@ -319,13 +337,13 @@
             const allMonths = [...new Set([
                 ...Object.keys(disbursements), 
                 ...Object.keys(repayments),
-                ...Object.keys(accruedInterest)
+                ...Object.keys(interest)
             ])].sort();
 
             allMonths.forEach(month => {
                 const disbursedAmount = (disbursements[month] || 0).toFixed(2);
                 const repaidAmount = (repayments[month] || 0).toFixed(2);
-                const accruedAmount = (accruedInterest[month] || 0).toFixed(2);
+                const interestAmount = (interest[month] || 0).toFixed(2);
 
                 const disburseRow = document.createElement('tr');
                 disburseRow.className = "border-b bg-white";
@@ -347,8 +365,7 @@
                 interestRow.className = "border-b bg-white";
                 interestRow.innerHTML = `
                     <td class="px-6 py-4">${month}</td>
-                    <td class="px-6 py-4">KES ${accruedAmount}</td>
-                    <td class="px-6 py-4">KES ${repaidAmount}</td>
+                    <td class="px-6 py-4">KES ${interestAmount}</td>
                 `;
                 interestBody.appendChild(interestRow);
             });
@@ -456,21 +473,27 @@
             document.getElementById('modalCancelBtn').addEventListener('click', window.hideModal);
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
             document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('closeDetailsModalBtn').addEventListener('click', window.closeLoanDetailsModal);
 
             document.getElementById('showAddLoanFormBtn').addEventListener('click', window.openAddLoanModal);
             document.getElementById('cancelAddLoanBtn').addEventListener('click', window.closeAddLoanModal);
 
             document.getElementById('loanListBody').addEventListener('click', (event) => {
                 const target = event.target;
-                if (target.tagName === 'BUTTON' && target.dataset.action) {
-                    const action = target.dataset.action;
-                    const loanId = target.dataset.loanId;
-
-                    if (action === 'repay') {
-                        const remainingAmount = parseFloat(target.dataset.remainingAmount);
-                        openRepayModal(loanId, remainingAmount);
-                    } else if (action === 'delete') {
-                        confirmDeleteLoan(loanId);
+                const row = target.closest('tr');
+                if (row) {
+                    const loanId = row.dataset.loanId;
+                    if (target.tagName === 'BUTTON' && target.dataset.action) {
+                        const action = target.dataset.action;
+                        if (action === 'repay') {
+                            const remainingAmount = parseFloat(target.dataset.remainingAmount);
+                            openRepayModal(loanId, remainingAmount);
+                        } else if (action === 'delete') {
+                            confirmDeleteLoan(loanId);
+                        }
+                    } else {
+                        // Open details modal if not clicking a button
+                        window.openLoanDetailsModal(loanId);
                     }
                 }
             });
@@ -526,14 +549,7 @@
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payable</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Payable</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -542,7 +558,7 @@
             </table>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
                 <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Disbursed</h3>
                 <div class="overflow-x-auto shadow-md rounded-lg">
@@ -574,21 +590,22 @@
                     </table>
                 </div>
             </div>
-        </div>
-
-        <div class="overflow-x-auto shadow-md rounded-lg">
-            <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Interest Report</h3>
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accrued Interest</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Earned Interest</th>
-                    </tr>
-                </thead>
-                <tbody id="monthlyInterestBody" class="bg-white divide-y divide-gray-200">
-                    </tbody>
-            </table>
+            
+            <div>
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Monthly Interest</h3>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Interest</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyInterestBody" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -613,8 +630,12 @@
                     <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div>
-                    <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
-                    <input type="date" id="dueDate" name="dueDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <label for="loanDuration" class="block text-sm font-medium text-gray-700">Loan Duration</label>
+                    <select id="loanDuration" name="loanDuration" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <option value="">Select a duration</option>
+                        <option value="2-weeks">2 Weeks</option>
+                        <option value="1-month">1 Month</option>
+                    </select>
                 </div>
                 <div>
                     <label for="phoneNumber" class="block text-sm font-medium text-gray-700">Phone Number</label>
@@ -664,5 +685,27 @@
             </div>
         </div>
     </div>
+    
+    <div id="loanDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">Loan Details</h3>
+                <button id="closeDetailsModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <div class="space-y-3 text-gray-700">
+                <p><strong>Name:</strong> <span id="detailsMemberName"></span></p>
+                <p><strong>Loan Amount:</strong> <span id="detailsLoanAmount"></span></p>
+                <p><strong>Amount Paid:</strong> <span id="detailsAmountPaid"></span></p>
+                <p><strong>Remaining Amount:</strong> <span id="detailsRemainingAmount"></span></p>
+                <p><strong>Amount Payable:</strong> <span id="detailsAmountPayable"></span></p>
+                <p><strong>Interest Rate:</strong> <span id="detailsLoanRate"></span></p>
+                <p><strong>Due Date:</strong> <span id="detailsDueDate"></span></p>
+                <p><strong>Phone Number:</strong> <span id="detailsPhoneNumber"></span></p>
+                <p><strong>Disbursement Message:</strong> <span id="detailsDisbursementMessage"></span></p>
+                <p><strong>Status:</strong> <span id="detailsLoanStatus"></span></p>
+            </div>
+        </div>
+    </div>
+    
 </body>
 </html>
