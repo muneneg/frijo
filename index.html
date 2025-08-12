@@ -137,7 +137,7 @@
             document.getElementById('addLoanModal').classList.add('hidden');
             document.getElementById('addLoanForm').reset();
         }
-        
+
         window.openLoanDetailsModal = async function(loanId) {
             const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
             const loanSnap = await getDoc(loanRef);
@@ -145,6 +145,7 @@
             if (loanSnap.exists()) {
                 const loan = loanSnap.data();
                 const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
+                const interestAmount = loan.loanAmount * (loan.rate / 100);
                 const remainingAmount = amountPayable - loan.amountPaid;
                 const dueDateObj = new Date(loan.dueDate);
 
@@ -158,6 +159,12 @@
                 document.getElementById('detailsPhoneNumber').textContent = loan.phoneNumber;
                 document.getElementById('detailsDisbursementMessage').textContent = loan.disbursementMessage;
                 document.getElementById('detailsLoanStatus').textContent = loan.status;
+
+                // Set up the interest-only repayment button
+                document.getElementById('interestRepayButton').dataset.loanId = loanId;
+                document.getElementById('interestRepayButton').dataset.interestAmount = interestAmount;
+                document.getElementById('interestRepayButton').dataset.duration = loan.duration;
+                document.getElementById('interestRepayButton').style.display = 'block';
 
                 document.getElementById('loanDetailsModal').classList.remove('hidden');
             } else {
@@ -205,6 +212,7 @@
                     phoneNumber: phoneNumber,
                     disbursementMessage: disbursementMessage,
                     rate: rate,
+                    duration: duration, // Store the duration
                     status: 'active',
                     createdAt: Date.now()
                 });
@@ -380,6 +388,53 @@
             document.getElementById('repayComment').value = '';
             document.getElementById('repayModal').classList.remove('hidden');
         }
+        
+        async function repayInterestOnly(loanId, interestAmount, duration) {
+            if (!isAuthReady || !userId) {
+                window.showMessage('Authentication not ready. Please wait.', 'error');
+                return;
+            }
+            
+            const loanRef = doc(db, `artifacts/${appId}/users/${userId}/loans`, loanId);
+            const currentLoanSnapshot = await getDoc(loanRef);
+
+            if (!currentLoanSnapshot.exists()) {
+                window.showMessage('Loan not found!', 'error');
+                return;
+            }
+
+            const currentLoanData = currentLoanSnapshot.data();
+            const newAmountPaid = (currentLoanData.amountPaid || 0) + interestAmount;
+            let newDueDate = new Date();
+            
+            // Recalculate new due date based on the original duration
+            if (duration === '2-weeks') {
+                newDueDate.setDate(newDueDate.getDate() + 14);
+            } else if (duration === '1-month') {
+                newDueDate.setMonth(newDueDate.getMonth() + 1);
+            }
+            
+            try {
+                await updateDoc(loanRef, {
+                    amountPaid: newAmountPaid,
+                    dueDate: newDueDate.getTime(),
+                    status: 'active'
+                });
+                
+                await addDoc(collection(loanRef, 'repayments'), {
+                    amount: interestAmount,
+                    repaidAt: Date.now(),
+                    comment: 'Interest-only repayment'
+                });
+
+                window.showMessage('Interest-only repayment recorded successfully! Loan duration extended.', 'success');
+                window.closeLoanDetailsModal();
+            } catch (e) {
+                console.error("Error updating loan or adding repayment: ", e);
+                window.showMessage(`Failed to record interest-only repayment: ${e.message}`, 'error');
+            }
+        }
+
 
         window.closeRepayModal = function() {
             document.getElementById('repayModal').classList.add('hidden');
@@ -496,6 +551,16 @@
                         window.openLoanDetailsModal(loanId);
                     }
                 }
+            });
+
+            document.getElementById('interestRepayButton').addEventListener('click', (event) => {
+                const loanId = event.target.dataset.loanId;
+                const interestAmount = parseFloat(event.target.dataset.interestAmount);
+                const duration = event.target.dataset.duration;
+
+                window.showModal('Confirm Interest Repayment', `Are you sure you want to record an interest-only payment of KES ${interestAmount.toFixed(2)} and extend the loan for another duration?`, () => {
+                    repayInterestOnly(loanId, interestAmount, duration);
+                });
             });
         };
     </script>
@@ -703,6 +768,9 @@
                 <p><strong>Phone Number:</strong> <span id="detailsPhoneNumber"></span></p>
                 <p><strong>Disbursement Message:</strong> <span id="detailsDisbursementMessage"></span></p>
                 <p><strong>Status:</strong> <span id="detailsLoanStatus"></span></p>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button id="interestRepayButton" class="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition duration-200" style="display: none;">Repay Interest Only & Extend</button>
             </div>
         </div>
     </div>
