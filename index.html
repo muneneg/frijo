@@ -145,13 +145,12 @@
             if (loanSnap.exists()) {
                 const loan = loanSnap.data();
                 const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
-                const interestAmount = loan.loanAmount * (loan.rate / 100);
-                const remainingAmount = amountPayable - loan.amountPaid;
+                const remainingAmount = amountPayable - (loan.amountPaid || 0);
                 const dueDateObj = new Date(loan.dueDate);
 
                 document.getElementById('detailsMemberName').textContent = loan.memberName;
                 document.getElementById('detailsLoanAmount').textContent = `KES ${loan.loanAmount.toFixed(2)}`;
-                document.getElementById('detailsAmountPaid').textContent = `KES ${loan.amountPaid.toFixed(2)}`;
+                document.getElementById('detailsAmountPaid').textContent = `KES ${(loan.amountPaid || 0).toFixed(2)}`;
                 document.getElementById('detailsRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
                 document.getElementById('detailsAmountPayable').textContent = `KES ${amountPayable.toFixed(2)}`;
                 document.getElementById('detailsLoanRate').textContent = `${loan.rate.toFixed(2)}%`;
@@ -159,6 +158,17 @@
                 document.getElementById('detailsPhoneNumber').textContent = loan.phoneNumber;
                 document.getElementById('detailsDisbursementMessage').textContent = loan.disbursementMessage;
                 document.getElementById('detailsLoanStatus').textContent = loan.status;
+
+                // Set up action buttons in the modal
+                const repayBtn = document.getElementById('repayFromDetailsBtn');
+                repayBtn.dataset.loanId = loanId;
+                repayBtn.dataset.loanAmount = loan.loanAmount;
+                repayBtn.dataset.loanRate = loan.rate;
+                repayBtn.dataset.loanDuration = loan.duration;
+                repayBtn.dataset.remainingAmount = remainingAmount;
+
+                const deleteBtn = document.getElementById('deleteFromDetailsBtn');
+                deleteBtn.dataset.loanId = loanId;
 
                 document.getElementById('loanDetailsModal').classList.remove('hidden');
             } else {
@@ -276,7 +286,7 @@
                 let displayStatus = loan.status;
 
                 const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
-                const remainingAmount = amountPayable - loan.amountPaid;
+                const remainingAmount = amountPayable - (loan.amountPaid || 0);
 
                 const dueDateObj = new Date(loan.dueDate);
                 const timeDiff = loan.dueDate - now;
@@ -314,8 +324,7 @@
                     <td class="px-6 py-4">KES ${loan.loanAmount.toFixed(2)}</td>
                     <td class="px-6 py-4">KES ${amountPayable.toFixed(2)}</td>
                     <td class="px-6 py-4 text-right">
-                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="repay" data-loan-id="${loan.id}" data-loan-rate="${loan.rate}" data-loan-amount="${loan.loanAmount}" data-loan-duration="${loan.duration}" data-remaining-amount="${remainingAmount}" onclick="event.stopPropagation()">Repay</button>
-                        <button class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600" data-action="delete" data-loan-id="${loan.id}" onclick="event.stopPropagation()">Delete</button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 mr-2" data-action="details" data-loan-id="${loan.id}">Details</button>
                     </td>
                 `;
                 loanListBody.appendChild(row);
@@ -402,7 +411,7 @@
             }
             
             const loanId = document.getElementById('repayLoanId').value;
-            let repayAmountInput = document.getElementById('repayAmount');
+            const repayAmountInput = document.getElementById('repayAmount');
             let repayAmount = parseFloat(repayAmountInput.value);
             const repayComment = document.getElementById('repayComment').value.trim();
             const interestOnly = document.getElementById('interestOnlyCheckbox').checked;
@@ -428,15 +437,17 @@
 
                 if (interestOnly) {
                     const interestAmount = currentLoanData.loanAmount * (currentLoanData.rate / 100);
-                    repayAmount = interestAmount; // Ensure repay amount is correct for interest-only
+                    repayAmount = interestAmount; 
                     newAmountPaid += repayAmount;
-                    newDueDate = new Date();
+
+                    // Recalculate new due date based on the original duration
+                    const newDueDateObj = new Date();
                     if (loanDuration === '2-weeks') {
-                        newDueDate.setDate(newDueDate.getDate() + 14);
+                        newDueDateObj.setDate(newDueDateObj.getDate() + 14);
                     } else if (loanDuration === '1-month') {
-                        newDueDate.setMonth(newDueDate.getMonth() + 1);
+                        newDueDateObj.setMonth(newDueDateObj.getMonth() + 1);
                     }
-                    newDueDate = newDueDate.getTime();
+                    newDueDate = newDueDateObj.getTime();
                 } else {
                     const amountPayable = currentLoanData.loanAmount * (1 + (currentLoanData.rate / 100));
                     const remainingAmount = amountPayable - currentLoanData.amountPaid;
@@ -518,22 +529,30 @@
                 const row = target.closest('tr');
                 if (row) {
                     const loanId = row.dataset.loanId;
-                    if (target.tagName === 'BUTTON' && target.dataset.action) {
-                        const action = target.dataset.action;
-                        if (action === 'repay') {
-                            const remainingAmount = parseFloat(target.dataset.remainingAmount);
-                            const loanAmount = parseFloat(target.dataset.loanAmount);
-                            const loanRate = parseFloat(target.dataset.loanRate);
-                            const loanDuration = target.dataset.loanDuration;
-                            openRepayModal(loanId, loanAmount, loanRate, loanDuration, remainingAmount);
-                        } else if (action === 'delete') {
-                            confirmDeleteLoan(loanId);
-                        }
+                    if (target.tagName === 'BUTTON' && target.dataset.action === 'details') {
+                         window.openLoanDetailsModal(loanId);
                     } else {
-                        // Open details modal if not clicking a button
+                        // This handles clicking on the row itself
                         window.openLoanDetailsModal(loanId);
                     }
                 }
+            });
+
+            document.getElementById('repayFromDetailsBtn').addEventListener('click', (event) => {
+                const target = event.target;
+                const loanId = target.dataset.loanId;
+                const loanAmount = parseFloat(target.dataset.loanAmount);
+                const loanRate = parseFloat(target.dataset.loanRate);
+                const loanDuration = target.dataset.loanDuration;
+                const remainingAmount = parseFloat(target.dataset.remainingAmount);
+                openRepayModal(loanId, loanAmount, loanRate, loanDuration, remainingAmount);
+                window.closeLoanDetailsModal();
+            });
+
+            document.getElementById('deleteFromDetailsBtn').addEventListener('click', (event) => {
+                const loanId = event.target.dataset.loanId;
+                confirmDeleteLoan(loanId);
+                window.closeLoanDetailsModal();
             });
 
             document.getElementById('interestOnlyCheckbox').addEventListener('change', (event) => {
@@ -761,6 +780,10 @@
                 <p><strong>Phone Number:</strong> <span id="detailsPhoneNumber"></span></p>
                 <p><strong>Disbursement Message:</strong> <span id="detailsDisbursementMessage"></span></p>
                 <p><strong>Status:</strong> <span id="detailsLoanStatus"></span></p>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                 <button id="repayFromDetailsBtn" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200" data-action="repay">Repay</button>
+                 <button id="deleteFromDetailsBtn" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition duration-200" data-action="delete">Delete</button>
             </div>
         </div>
     </div>
