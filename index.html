@@ -146,6 +146,7 @@
                 const loan = loanSnap.data();
                 const amountPayable = loan.loanAmount * (1 + (loan.rate / 100));
                 const remainingAmount = amountPayable - (loan.amountPaid || 0);
+                const disbursementDateObj = new Date(loan.disbursementDate);
                 const dueDateObj = new Date(loan.dueDate);
 
                 document.getElementById('detailsMemberName').textContent = loan.memberName;
@@ -154,6 +155,7 @@
                 document.getElementById('detailsRemainingAmount').textContent = `KES ${remainingAmount.toFixed(2)}`;
                 document.getElementById('detailsAmountPayable').textContent = `KES ${amountPayable.toFixed(2)}`;
                 document.getElementById('detailsLoanRate').textContent = `${loan.rate.toFixed(2)}%`;
+                document.getElementById('detailsDisbursementDate').textContent = disbursementDateObj.toLocaleDateString();
                 document.getElementById('detailsDueDate').textContent = dueDateObj.toLocaleDateString();
                 document.getElementById('detailsPhoneNumber').textContent = loan.phoneNumber;
                 document.getElementById('detailsDisbursementMessage').textContent = loan.disbursementMessage;
@@ -190,35 +192,43 @@
 
             const memberName = document.getElementById('memberName').value.trim();
             const loanAmount = parseFloat(document.getElementById('loanAmount').value);
+            const rate = parseFloat(document.getElementById('loanRate').value);
+            const disbursementDateInput = document.getElementById('disbursementDate').value;
             const duration = document.getElementById('loanDuration').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const disbursementMessage = document.getElementById('disbursementMessage').value.trim();
-            const rate = parseFloat(document.getElementById('loanRate').value);
 
-            if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !duration || !phoneNumber || isNaN(rate) || rate < 0) {
+            if (!memberName || isNaN(loanAmount) || loanAmount <= 0 || !duration || !phoneNumber || isNaN(rate) || rate < 0 || !disbursementDateInput) {
                 window.showMessage('Please fill in all required fields correctly.', 'error');
                 return;
             }
+            
+            const disbursementDate = new Date(disbursementDateInput);
+            let dueDate = new Date(disbursementDate);
 
-            let dueDate = new Date();
             if (duration === '2-weeks') {
                 dueDate.setDate(dueDate.getDate() + 14);
             } else if (duration === '1-month') {
                 dueDate.setMonth(dueDate.getMonth() + 1);
             }
 
+            const createdTimestamp = Date.now();
+            const disbursementTimestamp = disbursementDate.getTime();
+            const dueTimestamp = dueDate.getTime();
+
             try {
                 await addDoc(collection(db, `artifacts/${appId}/users/${userId}/loans`), {
                     memberName: memberName,
                     loanAmount: loanAmount,
                     amountPaid: 0,
-                    dueDate: dueDate.getTime(),
+                    disbursementDate: disbursementTimestamp,
+                    dueDate: dueTimestamp,
                     phoneNumber: phoneNumber,
                     disbursementMessage: disbursementMessage,
                     rate: rate,
                     duration: duration,
                     status: 'active',
-                    createdAt: Date.now()
+                    createdAt: createdTimestamp
                 });
                 window.showMessage('Loan added successfully!', 'success');
                 window.closeAddLoanModal();
@@ -437,7 +447,7 @@
 
                 if (interestOnly) {
                     const interestAmount = currentLoanData.loanAmount * (currentLoanData.rate / 100);
-                    repayAmount = interestAmount; 
+                    repayAmount = interestAmount;
                     newAmountPaid += repayAmount;
 
                     // Recalculate new due date based on the original duration
@@ -699,6 +709,10 @@
                     <input type="number" id="loanRate" name="loanRate" step="0.01" value="0" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
                 <div>
+                    <label for="disbursementDate" class="block text-sm font-medium text-gray-700">Disbursement Date</label>
+                    <input type="date" id="disbursementDate" name="disbursementDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
                     <label for="loanDuration" class="block text-sm font-medium text-gray-700">Loan Duration</label>
                     <select id="loanDuration" name="loanDuration" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         <option value="">Select a duration</option>
@@ -776,6 +790,7 @@
                 <p><strong>Remaining Amount:</strong> <span id="detailsRemainingAmount"></span></p>
                 <p><strong>Amount Payable:</strong> <span id="detailsAmountPayable"></span></p>
                 <p><strong>Interest Rate:</strong> <span id="detailsLoanRate"></span></p>
+                <p><strong>Disbursement Date:</strong> <span id="detailsDisbursementDate"></span></p>
                 <p><strong>Due Date:</strong> <span id="detailsDueDate"></span></p>
                 <p><strong>Phone Number:</strong> <span id="detailsPhoneNumber"></span></p>
                 <p><strong>Disbursement Message:</strong> <span id="detailsDisbursementMessage"></span></p>
